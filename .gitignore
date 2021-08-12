@@ -1,0 +1,10 @@
+coronahack-chest-xraydataset/
+stanford-dogs-dataset/
+twitter.csv
+.ipynb_checkpoints/
+data/
+*.h5
+*.obj
+*.w2v
+*.keys
+gym-results/
