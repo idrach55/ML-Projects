@@ -8,12 +8,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-import PIL
+import itertools
+import matplotlib.pyplot as plt
 
-import torchvision
 from torchvision import datasets, transforms
-
-from torch.utils.data import DataLoader, TensorDataset
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
@@ -23,10 +21,11 @@ def setup():
                                    np.array,
                                    torch.tensor,
                                    lambda x: torch.reshape(x,(3,256,256))/255]))
-    trainset, valset = torch.utils.data.random_split(dataset, [5000, 284])
+    trainset, valset = torch.utils.data.random_split(dataset, [2560, 2724])
     loaders = {'train': torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True),
                'test':  torch.utils.data.DataLoader(valset)}
     return loaders
+
 
 class Model(nn.Module):
     def __init__(self):
@@ -73,6 +72,7 @@ class Model(nn.Module):
         x = self.dense(x)
         return F.log_softmax(x, dim=1)
 
+
 def get_sample(testset, N=100):
     shape   = testset.dataset[0][0].shape
     sample_data   = torch.zeros(size=(N,shape[0],shape[1],shape[2]))
@@ -83,6 +83,7 @@ def get_sample(testset, N=100):
         sample_data[batch_idx] = data
         sample_target[batch_idx] = target
     return sample_data, sample_target
+
 
 def test_sample(model, testset, N=100):
     if N is None:
@@ -104,6 +105,7 @@ def test_sample(model, testset, N=100):
     # (results == targets).sum() / len(targets)
     return results, targets
 
+
 def train_many(epochs, model, optimizer, trainset, testset):
     # Record loss on training set, and accuracy on test set.
     losses = []
@@ -111,7 +113,7 @@ def train_many(epochs, model, optimizer, trainset, testset):
 
     # Take sample from test set.
     sample_data, sample_target = get_sample(testset, N=100)
-    for epoch in range(1,epochs+1):
+    for epoch in range(1, epochs+1):
         # Run an epoch.
         model.train()
         for batch_idx, (data, target) in enumerate(trainset):
@@ -122,20 +124,40 @@ def train_many(epochs, model, optimizer, trainset, testset):
             loss.backward()
             optimizer.step()
             # Every-so-often print stats
-            if batch_idx % 50 == 0:
-                progress = batch_idx*64 + (epoch - 1)*len(trainset.dataset)
+            if batch_idx > 0 and batch_idx % 20 == 0:
+                progress = (batch_idx+1)*64 + (epoch - 1)*len(trainset.dataset)
 
                 print('[{:<2}/{}][{:<4}/{} ({:>2.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, epochs, batch_idx*64, len(trainset.dataset),
+                    epoch, epochs, (batch_idx+1)*64, len(trainset.dataset),
                     100. * progress / (epochs * len(trainset.dataset)), loss.item()))
                 losses.append((progress, loss.item()))
 
         # Every-so-often run on test set and print stats.
-        if epoch % 5 == 0:
-            torch.save(model.state_dict(), 'corona.pt')
-            #results, targets = test_sample(model, testset)
-            model.eval()
-            accuracy = ((model(sample_data).argmax(axis=1) == sample_target).sum() / len(sample_target)).item()
-            accuracies.append((epoch*len(trainset.dataset), accuracy))
-            print('[{:<2}/{}]\t Accuracy: {:.2f}%'.format(epoch, epochs, 100*accuracy))
+        torch.save(model.state_dict(), 'corona.pt')
+        #results, targets = test_sample(model, testset)
+        model.eval()
+        accuracy = ((model(sample_data).argmax(axis=1) == sample_target).sum() / len(sample_target)).item()
+        accuracies.append((epoch*len(trainset.dataset), accuracy))
+        print('[{:<2}/{}]\t Accuracy: {:.2f}%'.format(epoch, epochs, 100*accuracy))
     return model, losses, accuracies
+
+
+def plot_confusion_matrix(cm, classes, title='Confusion matrix', cmap=plt.cm.Blues):
+    cm = cm.astype('float') / cm.sum(axis=1).reshape(-1,1)
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title, fontsize=25)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=90, fontsize=18)
+    plt.yticks(tick_marks, classes, fontsize=18)
+
+    fmt = '.2f'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label', fontsize=20)
+    plt.xlabel('Predicted label', fontsize=20)
