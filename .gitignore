@@ -4,7 +4,9 @@ twitter.csv
 .ipynb_checkpoints/
 data/
 *.h5
+*.pt
 *.obj
 *.w2v
 *.keys
 gym-results/
+mnist-gan/
