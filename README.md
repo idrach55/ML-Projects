@@ -11,6 +11,8 @@ Trained a dog breed classifier on the Stanford dogs dataset using a TF/keras con
 
 ## MNIST
 Files <code>mnist.ipynb</code> & <code>mnist gan.ipynb</code><br>
+The first notebook is the "hello world" of image machine learning -- using a pytorch neural net to classify handwritten digits from the MNIST dataset.
+The other notebook is experimenting with GANs in TF/keras. 
 
 ## Credit Cards
 Files: <code>credit cards.ipynb</code><br>
