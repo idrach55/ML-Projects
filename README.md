@@ -3,7 +3,7 @@ Collection of various ML scripts/notebooks (mostly neural nets in keras/tf2 or p
 
 ## Dogs
 Files: <code>dogs.ipynb</code> & <code>dogs.py</code><br>
-Trained a dog breed classifier on the Stanford dogs dataset using a pytorch convolutional neural net. Experiemented with image size (64x64 or 128x128 pixels), layer architecture (# of convolutional layers, dropout probabilities), and training hyperparameters. 
+Trained a dog breed classifier on the Stanford dogs dataset using a pytorch convolutional neural net. Experimented with image size (64x64 or 128x128 pixels), network architecture (# of convolutional layers, dropout probabilities), and training hyperparameters. 
 
 ## Corona X-Ray Dataset
 Files: <code>corona.ipynb</code> & <code>corona.py</code><br>
