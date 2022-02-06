@@ -1,3 +1,8 @@
+"""
+Author: Isaac Drachman
+Date:   11/1/2020
+"""
+
 import cv2
 import os
 import numpy as np
@@ -29,6 +34,10 @@ class Model(nn.Module):
         self.conv2 = nn.Conv2d(64, 64, kernel_size=(4,4), stride=(2,2), padding=(1,1), bias=False)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=(4,4), stride=(2,2), padding=(1,1), bias=False)
         self.conv4 = nn.Conv2d(128, 256, kernel_size=(4,4), stride=(2,2), padding=(1,1), bias=False)
+        self.drop1 = nn.Dropout(0.5)
+        self.drop2 = nn.Dropout(0.5)
+        self.drop3 = nn.Dropout(0.4)
+        self.drop4 = nn.Dropout(0.4)
         self.batch1 = nn.BatchNorm2d(64)
         self.batch2 = nn.BatchNorm2d(64)
         self.batch3 = nn.BatchNorm2d(128)
@@ -40,28 +49,23 @@ class Model(nn.Module):
     def forward(self, x):
         """
         Forward-propogate through the neural net.
-
-        Apply rounds of convolution, then batch normalization, leaky-relu, and dropout.
+        Apply rounds of convolution, batch normalization, leaky-relu, and dropout.
         """
-        x = self.conv1(x)
-        x = self.batch1(x)
+        x = self.batch1(self.conv1(x))
         x = F.leaky_relu(x, negative_slope=0.20)
-        x = F.dropout(x, 0.5)
+        x = self.drop1(x)
 
-        x = self.conv2(x)
-        x = self.batch2(x)
+        x = self.batch2(self.conv2(x))
         x = F.leaky_relu(x, negative_slope=0.20)
-        x = F.dropout(x, 0.4)
+        x = self.drop2(x)
 
-        x = self.conv3(x)
-        x = self.batch3(x)
+        x = self.batch3(self.conv3(x))
         x = F.leaky_relu(x, negative_slope=0.20)
-        x = F.dropout(x, 0.4)
+        x = self.drop3(x)
 
-        x = self.conv4(x)
-        x = self.batch4(x)
+        x = self.batch4(self.conv4(x))
         x = F.leaky_relu(x, negative_slope=0.20)
-        x = F.dropout(x, 0.4)
+        x = self.drop4(x)
 
         x = self.flatten(x)
         x = self.dense1(x)
@@ -101,14 +105,16 @@ def test_sample(model, testset, N=100):
 
 def train_many(epochs, model, optimizer, trainset, testset):
     # Record loss on training set, and accuracy on test set.
-    losses = []
-    accuracies = []
+    losses = {'train': [], 'test': []}
+    accuracies = {'train': [], 'test': []}
 
     # Take sample from test set.
     sample_data, sample_target = get_sample(testset, N=100)
-    for epoch in range(1,epochs+1):
+    for epoch in range(1, epochs+1):
         # Run an epoch.
         model.train()
+        train_loss = 0.0
+        train_accy = 0.0
         for batch_idx, (data, target) in enumerate(trainset):
             # Zero gradient, evaluate, backward-propogate, and step the minimization.
             optimizer.zero_grad()
@@ -116,46 +122,33 @@ def train_many(epochs, model, optimizer, trainset, testset):
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()
-            # Every-so-often print stats
-            if batch_idx % 50 == 0:
-                progress = batch_idx*64 + (epoch - 1)*len(trainset.dataset)
+            train_loss += loss.item()
+            train_accy += ((output.argmax(axis=1) == target).sum() / len(target)).item()
 
-                print('[{:<2}/{}][{:<4}/{} ({:>2.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, epochs, batch_idx*64, len(trainset.dataset),
-                    100. * progress / (epochs * len(trainset.dataset)), loss.item()))
-                losses.append((progress, loss.item()))
+        # Record average train loss/accuracy for this epoch.
+        train_loss /= len(trainset)
+        train_accy /= len(trainset)
+        losses['train'].append(train_loss)
+        accuracies['train'].append(train_accy)
+        
+        # After each epoch run on test set and print stats.
+        torch.save(model.state_dict(), 'dogs.pt')
+        model.eval()
+        with torch.no_grad():
+            test_accy = ((model(sample_data).argmax(axis=1) == sample_target).sum() / len(sample_target)).item()
+            test_loss = F.nll_loss(model(sample_data), sample_target.long())
+            losses['test'].append(test_loss)
+            accuracies['test'].append(test_accy)
+        print(f'[{epoch:<2}/{epochs}]\t train loss: {train_loss:.4f} test loss: {test_loss:.4f} train accuracy: {100*train_accy:>4.1f}% test accuracy: {100*test_accy:>4.1f}%')
+    return losses, accuracies
 
-        # Every-so-often run on test set and print stats.
-        if epoch % 5 == 0:
-            torch.save(model.state_dict(), 'dogs_state.pt')
-            #results, targets = test_sample(model, testset)
-            model.eval()
-            accuracy = ((model(sample_data).argmax(axis=1) == sample_target).sum() / len(sample_target)).item()
-            accuracies.append((epoch*len(trainset.dataset), accuracy))
-            print('[{:<2}/{}]\t Accuracy: {:.2f}%'.format(epoch, epochs, 100*accuracy))
-    return model, losses, accuracies
-
-# Pass it pyplot since there is a library collision
-def show_example(model, testset, breeds, idx, plt):
-    print('actual: {}'.format(breeds[testset.dataset[idx][1]]))
-    print('predicted: {}'.format(breeds[model(testset.dataset[idx][0].reshape(1,3,64,64)).argmax()]))
-    plt.imshow(testset.dataset[idx][0].reshape(64,64,3)+0.5)
-    plt.show()
-
-def setup(state='dogs_state.pt'):
+def setup():
     # Load/crop image data per breed
     images = load_images()
 
     # Build train & test datasets
     trainset, testset, breeds = build_datasets(images)
-
-    # Setup model and optimizer
-    model = Model(len(breeds))
-    if state is not None:
-        model.load_state_dict(torch.load(state))
-
-    adam  = optim.Adam(model.parameters(), lr=0.0001)
-    return images, trainset, testset, breeds, model, adam
+    return images, trainset, testset, breeds
 
 def load_images():
     """
@@ -261,7 +254,6 @@ def crop_image(path):
     width = int(size.find('width').text)
     height = int(size.find('height').text)
     objects = root.findall('object')
-
     bndbox = objects[0].find('bndbox')
 
     xmin = int(bndbox.find('xmin').text)
@@ -275,7 +267,7 @@ def crop_image(path):
     ymin = max(0, ymin - 4)
     ymax = min(height, ymax + 4)
 
-    # available w
+    # Available width.
     w = np.min((xmax - xmin, ymax - ymin))
     w = min(w, width, height)
 
@@ -286,16 +278,9 @@ def crop_image(path):
         ymin = min(max(0, ymin - int((w - (ymax - ymin))/2)), height - w)
         ymax = ymin + w
 
-    # [h,w,c]
+    # (height, width, channels)
     img_cropped = image[ymin:ymin+w, xmin:xmin+w, :]
 
-    # Interpolation method
-    if xmax - xmin > IMG_WIDTH:
-        # shrink
-        interpolation = cv2.INTER_AREA
-    else:
-        # expansion
-        interpolation = cv2.INTER_CUBIC
-
-    # resize
+    # Resize image using appropriate interp method if upsize/downsize.
+    interpolation = cv2.INTER_AREA if xmax - xmin > IMG_WIDTH else cv2.INTER_CUBIC
     return cv2.resize(img_cropped, (IMG_WIDTH, IMG_HEIGHT), interpolation=interpolation)
