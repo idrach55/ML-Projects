@@ -21,8 +21,8 @@ ANNOTATION_DIR = './stanford-dogs-dataset/annotations/Annotation'
 IMG_DIR        = './stanford-dogs-dataset/images/Images'
 
 # Constants for image size/channels
-IMG_WIDTH = 64
-IMG_HEIGHT = 64
+IMG_WIDTH = 128
+IMG_HEIGHT = 128
 IMG_CHANNEL = 3
 
 class Model(nn.Module):
@@ -36,14 +36,15 @@ class Model(nn.Module):
         self.conv4 = nn.Conv2d(128, 256, kernel_size=(4,4), stride=(2,2), padding=(1,1), bias=False)
         self.drop1 = nn.Dropout(0.5)
         self.drop2 = nn.Dropout(0.5)
-        self.drop3 = nn.Dropout(0.4)
-        self.drop4 = nn.Dropout(0.4)
+        self.drop3 = nn.Dropout(0.5)
+        self.drop4 = nn.Dropout(0.5)
         self.batch1 = nn.BatchNorm2d(64)
         self.batch2 = nn.BatchNorm2d(64)
         self.batch3 = nn.BatchNorm2d(128)
         self.batch4 = nn.BatchNorm2d(256)
         self.flatten = nn.Flatten()
-        self.dense1 = nn.Linear(4096, self.output_dim)
+        # Each convolutional layer will output shape (N, C_out, H_out, W_out) which divides H_out and W_out by 2 with these params.
+        self.dense1 = nn.Linear(int(256 * IMG_WIDTH / 2**4 * IMG_HEIGHT / 2**4), self.output_dim)
         self.dense2 = nn.Linear(self.output_dim, self.output_dim)
 
     def forward(self, x):
