@@ -1,5 +1,5 @@
 # ML-Projects
-Collection of various ML scripts/notebooks (mostly neural nets in pytorch) from textbook examples and kaggle datasets.  
+Collection of various ML scripts/notebooks (mostly neural nets in pytorch) trained on kaggle datasets.  
 
 ## Dogs
 Files: <code>dogs.ipynb</code> & <code>dogs.py</code><br>
